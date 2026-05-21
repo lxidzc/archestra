@@ -101,31 +101,40 @@ export function mergePersistedMessageMetadata(params: {
   liveMessages: UIMessage[];
   persistedMessages: UIMessage[];
 }): UIMessage[] {
-  const remainingPersistedMessages = [...params.persistedMessages];
+  let persistedSearchStart = 0;
+  let liveMessagesMatchPersistedPrefix = true;
   let changed = false;
 
   const mergedMessages = params.liveMessages.map((liveMessage) => {
     const liveMetadata = getObjectMetadata(liveMessage);
-    if (typeof liveMetadata[PERSISTED_MESSAGE_ID_METADATA_KEY] === "string") {
-      return liveMessage;
-    }
-
-    const persistedIndex = remainingPersistedMessages.findIndex(
-      (persistedMessage) =>
+    const persistedRelativeIndex = params.persistedMessages
+      .slice(persistedSearchStart)
+      .findIndex((persistedMessage) =>
         messagesHaveSameRenderableContent({
           liveMessage,
           persistedMessage,
         }),
-    );
+      );
 
-    if (persistedIndex === -1) {
+    if (persistedRelativeIndex === -1) {
+      liveMessagesMatchPersistedPrefix = false;
       return liveMessage;
     }
 
-    const [persistedMessage] = remainingPersistedMessages.splice(
-      persistedIndex,
-      1,
-    );
+    const persistedIndex = persistedSearchStart + persistedRelativeIndex;
+    const persistedMessage = params.persistedMessages[persistedIndex];
+    if (persistedIndex !== persistedSearchStart) {
+      liveMessagesMatchPersistedPrefix = false;
+    }
+    persistedSearchStart = persistedIndex + 1;
+
+    if (typeof liveMetadata[PERSISTED_MESSAGE_ID_METADATA_KEY] === "string") {
+      return liveMessage;
+    }
+
+    if (!persistedMessage) {
+      return liveMessage;
+    }
 
     changed = true;
     return {
@@ -137,6 +146,16 @@ export function mergePersistedMessageMetadata(params: {
       },
     };
   });
+
+  const persistedTail =
+    liveMessagesMatchPersistedPrefix &&
+    persistedSearchStart < params.persistedMessages.length
+      ? params.persistedMessages.slice(persistedSearchStart)
+      : [];
+
+  if (persistedTail.length > 0) {
+    return [...mergedMessages, ...persistedTail];
+  }
 
   return changed ? mergedMessages : params.liveMessages;
 }

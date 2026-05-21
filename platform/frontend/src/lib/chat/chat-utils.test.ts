@@ -267,4 +267,66 @@ describe("mergePersistedMessageMetadata", () => {
 
     expect(mergedMessages).toBe(liveMessages);
   });
+
+  it("appends persisted tail messages when live messages are a persisted prefix", () => {
+    const liveMessages = [
+      {
+        id: "live-user-1",
+        role: "user",
+        parts: [{ type: "text", text: "hello" }],
+      },
+    ] as UIMessage[];
+    const persistedMessages = [
+      {
+        id: "db-user-1",
+        role: "user",
+        parts: [{ type: "text", text: "hello" }],
+      },
+      {
+        id: "db-assistant-1",
+        role: "assistant",
+        parts: [{ type: "text", text: "hi there" }],
+      },
+    ] as UIMessage[];
+
+    const mergedMessages = mergePersistedMessageMetadata({
+      liveMessages,
+      persistedMessages,
+    });
+
+    expect(mergedMessages).toHaveLength(2);
+    expect(mergedMessages[0]?.metadata).toMatchObject({
+      [PERSISTED_MESSAGE_ID_METADATA_KEY]: "db-user-1",
+    });
+    expect(mergedMessages[1]).toBe(persistedMessages[1]);
+  });
+
+  it("does not append persisted messages when live messages are not a persisted prefix", () => {
+    const liveMessages = [
+      {
+        id: "live-user-1",
+        role: "user",
+        parts: [{ type: "text", text: "different prompt" }],
+      },
+    ] as UIMessage[];
+    const persistedMessages = [
+      {
+        id: "db-user-1",
+        role: "user",
+        parts: [{ type: "text", text: "hello" }],
+      },
+      {
+        id: "db-assistant-1",
+        role: "assistant",
+        parts: [{ type: "text", text: "hi there" }],
+      },
+    ] as UIMessage[];
+
+    const mergedMessages = mergePersistedMessageMetadata({
+      liveMessages,
+      persistedMessages,
+    });
+
+    expect(mergedMessages).toBe(liveMessages);
+  });
 });
